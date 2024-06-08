@@ -1,0 +1,18 @@
+1. Replication
+  1.1 Synchronous versus asynchronous replication
+2.Data replication models
+  2.1 Single leader or primary-secondary replication
+    --- In primary-secondary replication, data is replicated across multiple nodes. One node is designated as the primary. It’s responsible for processing any writes to data stored on the cluster. It also sends all the writes to the secondary nodes and keeps them in sync.Primary-secondary replication is appropriate when our workload is read-heavy.
+    --- Replication Methods
+        --- Statement-based replication
+        --- Write-ahead log (WAL) shipping (mostly used)
+        --- Logical (row-based) replication
+  2.2 Multi-leader replication
+      --- There are multiple primary nodes that process the writes and send them to all other primary and secondary nodes to replicate. This type of replication is used in databases along with external tools like the Tungsten Replicator for MySQL.
+      --- Conflict
+          --- Conflict avoidance
+          --- Last-write-wins
+          --- Custom logic#
+  2.3 Peer-to-peer or leaderless replication
+      --- Conflicts
+          --- Quorums : w + r  > n

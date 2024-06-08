@@ -1,0 +1,51 @@
+1. Data Partioning
+  --- Data partitioning (or sharding) enables us to use multiple nodes where each node manages some part of the whole data. To handle increasing query rates and data amounts, we strive for balanced partitions and balanced read/write load.
+2. Ways to shard the data:
+  2.1 Vertical sharding
+  2.2 Horizontal sharding
+3. Vertical sharding
+    --- We can put different tables in various database instances, which might be running on a different physical server. We might break a table into multiple tables so that some columns are in one table while the rest are in the other. We should be careful if there are joins between multiple tables. We may like to keep such tables together on one shard.
+     Often, vertical sharding is used to increase the speed of data retrieval from a table consisting of columns with very wide text or a binary large object (blob). In this case, the column with large text or a blob is split into a different table.
+ 4. Horizontal sharding
+    --- divide a table into multiple tables by splitting data row-wise.Each partition of the original table distributed over database servers is called a shard. Usually, there are two strategies available:
+    Key-range based sharding
+    Hash based sharding
+
+    4.1 Key-range based sharding
+        --- In the key-range based sharding, each partition is assigned a continuous range of keys.
+        --- Sometimes, a database consists of multiple tables bound by foreign key relationships. In such a case, the horizontal
+        partition is performed using the same partition key on all tables in a relation. Tables (or subtables) that belong to the same partition key are distributed to one database shard.
+        --- The data routing logic uses the partition key at the application tier to map queries specified for a database shard.
+    4.2 Hash-based sharding
+      --- Hash-based sharding uses a hash function on an attribute. This hash function produces a hash value that is used to       perform partitioning. The main concept is to use a hash function on the key to get a hash value and then mod by the      number of partitions. Once we’ve found an appropriate hash function for keys, we may give each partition a range of      hashes (rather than a range of keys). Any key whose hash occurs inside that range will be kept in that partition.
+    4.3 Consistent hashing
+      --- Consistent hashing assigns each server or item in a distributed hash table a place on an abstract circle, called a ring, irrespective of the number of servers in the table. This permits servers and objects to scale without compromising the system’s overall performance.
+5. Rebalance the partitions
+  --- We can apply the following strategies to rebalance partitions.
+  5.1 Avoid hash mod n
+    --- moving of keys from one node to another makes rebalancing costly as number of nodes changes.
+  5.2 Fixed number of partitions
+    --- In this approach, the number of partitions to be created is fixed at the time when we set our database up. We create a higher number of partitions than the nodes and assign these partitions to nodes. So, when a new node is added to the system, it can take a few partitions from the existing nodes until the partitions are equally divided.A fixed number of partitions is used in Elasticsearch, Riak, and many more.
+  5.3 Dynamic partitioning
+    --- In this approach, when the size of a partition reaches the threshold, it’s split equally into two partitions. One of the two split partitions is assigned to one node and the other one to another node. In this way, the load is divided equally. The number of partitions adapts to the overall data amount, which is an advantage of dynamic partitioning.This approach is used in HBase and MongoDB.
+  5.4 Partition proportionally to nodes
+    --- In this approach, the number of partitions is proportionate to the number of nodes, which means every node has fixed partitions. In earlier approaches, the number of partitions was dependent on the size of the dataset.When a new node enters the network, it splits a certain number of current partitions at random, then takes one half of the split and leaves the other half alone. This can result in an unfair split. This approach is used by Cassandra and Ketama.
+  5.6 Who performs the rebalancing? Is it automatic or manual?
+      --- There are two ways to perform rebalancing: automatic and manual. In automatic rebalancing, there’s no administrator. The system determines when to perform the partitions and when to move data from one node to another.In manual rebalancing, the administrator determines when and how to perform the partitioning. Organizations perform rebalancing according to their needs. Some use automatic rebalancing, and some use manual.
+6. Partitioning and secondary indexes
+   --- We’ve discussed key-value data model partitioning schemes in which the records are retrieved with primary keys. But what if we have to access the records through secondary indexes? Secondary indexes are the records that aren’t identified by primary keys but are just a way of searching for some value.
+   6.1 Partition secondary indexes by document
+      --- Each partition is fully independent in this indexing approach. Each partition has its secondary indexes covering just the documents in that partition.
+   6.2 Partition secondary indexes by the term
+      --- Instead of creating a secondary index for each partition (a local index), we can make a global index for secondary terms that encompasses data from all partitions.
+7. Request routing
+   --- The allocation of partitions to nodes varies after rebalancing. If we want to read a specific key, how do we know which     IP address we need to connect to read?
+       This problem is also known as service discovery. Following are a few approaches to this problem:
+   --- Allow the clients to request any node in the network. If that node doesn’t contain the requested data, it forwards that     request to the node that does contain the related data.
+   --- The second approach contains a routing tier. All the requests are first forwarded to the routing tier, and it determines    which node to connect to fulfill the request.
+   --- The clients already have the information related to partitioning and which partition is connected to which node. So, they    can directly contact the node that contains the data they need.
+   7.1 ZooKeeper
+       --- To track changes in the cluster, many distributed data systems need a separate management server like ZooKeeper. Zookeeper keeps track of all the mappings in the network, and each node connects to ZooKeeper for the information. Whenever there’s a change in the partitioning, or a node is added or removed, ZooKeeper gets updated and notifies the routing tier about the change. HBase, Kafka and SolrCloud use ZooKeeper.
+
+
+

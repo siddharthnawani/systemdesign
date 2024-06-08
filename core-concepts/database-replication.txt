@@ -1,0 +1,131 @@
+What is Replication?
+Replication involves keeping a copy of data on multiple machines that are connected via a network. Following are the reasons why data is replicated in distributed systems:
+
+Maintain data geographically close to users to reduce latency.
+
+Increased availability by eliminating single point of failures.
+
+Increased throughput by allowing multiple nodes to serve read queries.
+
+The difficulty in replication lies in handling changes to replicated data. Almost all distributed databases implement the following three popular algorithms for replicating changes between nodes:
+
+Single-leader
+Multi-leader
+leaderless
+As is a common theme in system-design, replication requires strong analysis of trade-offs in order to best meet business requirements.
+
+Leaders and Followers
+Each database node that stores a copy of the data is called a replica.
+
+Every write to the database must be processed by each replica. Otherwise, the replicas would contain stale data. A common solution to this is called leader-based replication and works as follows:
+
+A replica is deemed to be the leader (a.k.a master or primary). All write requests are directed to the leader which updates its local data.
+
+All non-leader replica at any given time are known as followers (a.k.a read replicas or secondaries). After the leader writes new data, it forwards data change to all designated followers as part of a replication log or change stream. Subsequently, the followers update their local storage to match the leader.
+
+All subsequent read requests can be processed by either the leader of any follower. However, writes are only accepted by the leader.
+
+Synchronous vs Asynchronous Replication
+When replication is synchronous: the leader waits until followers has confirmed that it received the write before rporting success to the user/client. On the other hand, asynchronous replication implies that the leader reports success to clients and does not wait for a response from followers. There are times when followers may fall behind the updates published by leaders as a result of system failure recovery, network problems, operating near full capacity, etc.
+
+Advantages of Synchronous replication
+Followers are guaranteed to have an up-to-date copy of the data with respect to the leader. As a result, if the leader fails, followers are able to provided consistent data.
+Disadvantages of Synchronous replication
+If the followers don't respond due to crashes, network fault, etc. the write cannot be processed.
+
+Does not scale: as you add more followers, the probability of one being down increases. Making the system unavailable for writing.
+
+Leader must block writes and wait until followers are available.
+
+Semi-synchronous replicas
+For the previous reasons, it is unwise to configure all followers to be synchronous. As a result, the synchronous replication option in many database engines means that only one replica is made synchronous. Further, if this synchronous follower becomes unavailable, another available asynchronous follower is made synchronouse. This way, there always exists to have two nodes containing up to date copies of the data.
+
+Asynchronous replication
+Writes are not guaranteed to be durable if the leader fails and is not recoverable.
+Leader can continue to process writes, even if all of its followers have fallen behind.
+Widely used.
+Setting up New Followers
+Problem: Data in leader is in constant flux, a simple copy might lead to inconsistent data. Ensure new followers have accurate copy of leaders data.
+
+Solution: Locking
+Make the leader temporarily unavailable for writes.
+Availability is compromised.
+Solution: Copy and update
+The following is a high level description of how new replica nodes are added to a DB cluster:
+
+Take a snapshot of the leader's DB at some point in time without locking if possible.
+
+Copy the snapshot to the replica node.
+
+The replica requests the leader for all data changes that have occurred since the the snapshot was taken.
+
+The follower "catches up" to the data changes. It can now continuue to process data from the leader as they occur.
+
+Handling Node Outages
+Having the ability to reboot individual nodes without downtime is a desired characterisic for highly available and maintainable systems. In this section we present the main approaches taken to handle node outages:
+
+Follower failure: Catch-up recovery
+If each follower keeps a log of data changes received from the leader. After a follower becomes available after a temporary interruption. It can request the changes that occurred after its last change to the leader, similar to when setting up new followers.
+
+Leader failure: Failover
+If the leader fails, any one of the existing replicas must be "promoted" to be the new leader. As a result, clients must be configured to send their writes to the new leader and followers must start consuming data changes from the new leader. this process is denoted as failover.
+
+Failover can be handled manually or automatically. Automatic failover consists of the following steps:
+
+Determining that the leader has failed: bouncing messages back and forth, if a node does not respond within a time period, it is assumed to be down.
+
+Choosing a new leader.
+
+Election process
+Elected via a controller node
+Introduces a consensus problem.
+Reconfiguring the system to use the new leader: clients must send write requests to new leader. If the old leader comes back it must recognize the new leader.
+
+There are many things that can go wrong with leader failure:
+
+Durability issues: The new leader may not have received all writes from the old leader. If the former leader re-joins the cluster, it will contain conflicting data. A common solution is to discard these unreplicated writes. Further, discarding writes is dangerous if other storage systems outside the DB need to be coordinated with the database contents.
+
+Split brain: It is possible for tow nodes both to believe that they are the leader. As a result, data is likely to be lost or corrupted.
+
+Finding the right timeout before the leader is deemed to be down. Short timeouts can lead to unnecessary failovers.
+
+Implementation of Replication Logs
+There exists several methods to store and use replication logs. Let's highlight the most prominent ones.
+
+Statement-based replication
+This approach consist in the leader logging every write statement that it executes and sending it to followers.
+
+There are downsides to this approach:
+
+Any statement that uses a nondeterministic function can generate different values on each replica.
+
+Some statements must be executed in the same order on each replica. This can be limiting when there are multiple concurrently executing transactions.
+
+Statements that have side effects can result in different effects occurring on each replica.
+
+Write-ahead log (WAL) shipping
+This approach consists of maintaining a append-only sequence of bytes containing all writes to the database. This log can be used to build replicas.
+
+Downsides
+Describes data at low level: log describe changes of each disk block. Coupling the info the they type of storage engine, making it difficult to run different versions of the DB software on the leader and followers.
+
+As a result of the above, software updates requiere downtime.
+
+Logical (row-based) log replication
+This approach consists in decoupling the replication log format from the storage engine internals.
+
+A logical log for relational DB is a sequence of actions describing writes to database tables at the row granularity.
+
+Advantages
+Backward compatibility: allows leader and follower to run different versions of database software or storage engines.
+
+Easier for external applications to parse. Useful for data warehouse, customer indexes/caches. Change data capture.
+
+Trigger-based replication
+Triggers let you register custom application code that is executed when a data change occurs. Usually, the trigger writes to a log file which is read by a external process that replicates the data change to another system.
+
+Disadvantages
+Greater Overhead
+Prone to bugs
+Advantages
+Flexibility
